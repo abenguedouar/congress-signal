@@ -49,6 +49,12 @@ def main(execute: bool = False) -> dict:
         notes.append(f"broker not reached ({type(exc).__name__}: {exc}); plan computed for an empty account of 100,000")
         account, positions = {"equity": 100_000.0, "cash": 100_000.0, "status": "simulated"}, {}
 
+    if broker is not None:                                # daily record of the account: what the public page plots
+        eq_path, day = live / "equity.parquet", str(pd.Timestamp.now().date())
+        eq = pd.read_parquet(eq_path) if eq_path.exists() else pd.DataFrame(columns=["date", "equity", "cash", "positions"])
+        row = pd.DataFrame([{"date": day, "equity": account["equity"], "cash": account["cash"], "positions": len(positions)}])
+        pd.concat([eq[eq["date"] != day], row], ignore_index=True).to_parquet(eq_path)
+        (live / f"positions_{day}.json").write_text(json.dumps({s_: round(p_["value"], 2) for s_, p_ in positions.items()}))
     ledger_path = live / "ledger.parquet"
     ledger = pd.read_parquet(ledger_path) if ledger_path.exists() else pd.DataFrame(
         columns=["date", "symbol", "side", "dollars", "qty", "reason", "order_id", "status"])
