@@ -1,0 +1,66 @@
+# All tunable parameters live here. Nothing in the code hard-codes a modelling choice.
+
+data:
+  start_year: 2014            # first year of filings to ingest
+  cache_dir: data/cache       # re-downloadable data (prices, SEC facts, PDFs)
+  store_dir: data/store       # normalised tables (trades, events)
+  benchmark: SPY
+
+tickers:
+  aliases:                    # same company, new symbol: filings under the old symbol are read as the current one
+    {FB: META, SQ: XYZ, ANTM: ELV, BLL: BALL, FI: FISV, RDS.A: SHEL, RDS.B: SHEL, SNE: SONY, COH: TPR,
+     CTL: LUMN, HHC: HHH, ETE: ET, UTX: RTX, PCLN: BKNG, TMK: GL, WLTW: WTW, HRS: LHX, BBT: TFC, KORS: CPRI,
+     JEC: J, SYMC: GEN, NLOK: GEN, HCP: DOC, PEAK: DOC, LB: BBWI, DISCA: WBD, ABC: COR, MYL: VTRS, WYN: TNL,
+     WYND: TNL, PX: LIN, CTRP: TCOM, DPS: KDP}
+
+research:
+  lockbox_months: 24          # the most recent 24 months are not looked at until every choice is frozen
+  eval_start: 2016-01-04      # delisted companies have prices from 2016 only: before that date the panel holds survivors only,
+                              # so earlier data is used to train and to build member histories, never to judge a rule
+
+events:
+  asset_types: [stock]        # only common stocks / ADRs
+  include_call_options: true  # an option purchase is read as a signal on the stock; options are never traded
+  max_lag_days: 400           # drop filings disclosed absurdly late
+  sides: [buy]                # the long-only book acts on disclosed purchases
+
+labels:
+  horizons: [21, 63, 126]     # trading days after disclosure
+  main_horizon: 63
+  winsor: 0.01                # clip the 1% tails of abnormal returns
+
+model:
+  min_member_trades: 8        # a member gets his own coefficient only above this count
+  min_train_events: 400
+  refit_every_days: 63
+  purge_days: 63              # gap between train and test = label horizon (no overlap leakage)
+  cv_folds: 5
+
+rpca:
+  window_days: 365
+  lam_scale: 1.5              # lambda = lam_scale / sqrt(max(n_members, n_tickers)); tuned walk-forward in the research run
+
+portfolio:
+  max_names: 15
+  max_weight: 0.10
+  min_weight: 0.02
+  risk_aversion: 5.0
+  turnover_penalty: 0.002     # l1 penalty on |w - w_prev|
+  signal_ttl_days: 63         # how long a disclosed purchase stays actionable
+  rebalance_every_days: 5
+  cost_bps: 10                # per unit of turnover, one way
+  veto_days: 21               # a disclosed sale blocks the stock for this many trading days
+  veto_max_filing_size: 10    # sales from filings larger than this are liquidations or account moves: ignored
+
+live:                         # daily operation on the broker's test account
+  launch_date: 2026-12-01     # no order is sent before this day, whatever the command
+  cash_reserve: 0.01          # share of the account kept in cash (rounding, price moves between decision and execution)
+  min_order_dollars: 5.0
+  no_trade_band: 0.2          # a holding within 20% of its target size is left alone (fewer, larger trades)
+  max_order_share: 0.15       # an order above 15% of the account is refused and reported
+  hold_days: 2                # a purchase is not sold before it has settled
+
+public:                       # the public copy and its page
+  owner: abenguedouar
+  repo: congress-signal
+  author: Abderrahmene Benguedouar
