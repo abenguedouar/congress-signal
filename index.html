@@ -20,6 +20,7 @@ section{display:none}
 #t-portfolio:checked~#portfolio,#t-study:checked~#study,#t-code:checked~#code{display:block}
 #t-portfolio:checked~nav label[for=t-portfolio],#t-study:checked~nav label[for=t-study],#t-code:checked~nav label[for=t-code]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
 #t-portfolio:focus-visible~nav label[for=t-portfolio],#t-study:focus-visible~nav label[for=t-study],#t-code:focus-visible~nav label[for=t-code]{outline:2px solid var(--accent)}
+.intro{border-left:3px solid var(--accent);padding:2px 0 2px 18px;margin:0 0 26px;font-size:19px;line-height:1.55;color:#2a3442}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
 .kpis div{background:#fff;border:1px solid var(--line);padding:14px 16px}.kpis b{display:block;font-size:25px;line-height:1.2}
 .kpis span{color:var(--muted);font-size:13px}
@@ -30,6 +31,8 @@ section{display:none}
 <nav><label for="t-portfolio">Portfolio</label><label for="t-study">The study</label><label for="t-code">Report and code</label></nav>
 
 <section id="portfolio">
+<p class="intro">Peter Lynch said of company insiders that they may sell for any number of reasons, but buy for only one: they think the price will rise.
+Many investors believe the same of Congress, and add: <em>because they know something</em>. This portfolio puts that belief to a public test.</p>
 <p class="lede">US lawmakers must disclose the stocks they buy. This portfolio buys them too, after each disclosure, by a rule fixed in advance. <b>Starts on 1 December 2026.</b></p>
 <div class="kpis"><div><b>1 Dec 2026</b><span>first trading day</span></div>
 <div><b>100,000</b><span>test money (USD), broker's test account</span></div><div><b>about 40</b><span>stocks, equal parts</span></div>
@@ -81,7 +84,7 @@ It would take roughly 16 years of live results to tell a 3-point yearly gap from
 </section>
 
 <p class="small">Research and education only; not investment advice. Test money only. The disclosure reports are public records; US law forbids their use for commercial purposes, and this project has none.
-Page generated on 12 November 2026.</p>
+Page generated on 13 November 2026.</p>
 </main><script>
 var h={"#study":"t-study","#code":"t-code","#portfolio":"t-portfolio"}[location.hash];if(h)document.getElementById(h).checked=true;
 </script></body></html>
