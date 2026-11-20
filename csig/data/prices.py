@@ -150,7 +150,8 @@ def update_prices(tickers: list[str], cache_dir: str | Path, start: str = "2011-
             return not (m.get("src") == "missing" and (now - pd.Timestamp(m["asked"])).days < 21)
         if m.get("last") and (pd.Timestamp(m["asked"]) - pd.Timestamp(m["last"])).days > 30:
             return False                                  # the series ended: nothing new will come
-        return (now - pd.Timestamp(f.stat().st_mtime, unit="s")).days >= max_age_days
+        # 12 hours less than asked: a run at the same hour every day must refresh what the run of the day before wrote
+        return (now - pd.Timestamp(f.stat().st_mtime, unit="s")).total_seconds() >= max_age_days * 86400 - 12 * 3600
 
     todo = [t for t in tickers if stale(t)]
     status = {t: ("cached" if (cache / f"{t}.parquet").exists() else "missing") for t in tickers if t not in todo}

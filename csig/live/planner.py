@@ -32,6 +32,7 @@ def plan_orders(target: pd.Series, positions: dict[str, dict], equity: float, ca
     ``last_buy``: {symbol: date of the latest purchase}. Returns {"orders": [...], "refused": [...], "notes": [...]}."""
     reserve, min_order = rules.get("cash_reserve", 0.01), rules.get("min_order_dollars", 5.0)
     band, max_share, hold = rules.get("no_trade_band", 0.2), rules.get("max_order_share", 0.15), rules.get("hold_days", 2)
+    max_idle = rules.get("max_idle_cash", 0.03)
     today = pd.Timestamp(today)
     investable = equity * (1 - reserve)
     orders, refused, notes = [], [], []
@@ -52,7 +53,8 @@ def plan_orders(target: pd.Series, positions: dict[str, dict], equity: float, ca
             notes.append(f"{symbol}: sale postponed, bought less than {hold} trading days ago")
             continue
         qty = pos["qty"] if want == 0 else pos["qty"] * excess / pos["value"]
-        orders.append(Order(symbol, "sell", round(excess if want else pos["value"], 2), round(min(qty, pos["qty"]), 6),
+        # a stock that leaves the target is sold whole, to the last fraction of a share (rounding would leave dust behind)
+        orders.append(Order(symbol, "sell", round(excess if want else pos["value"], 2), pos["qty"] if want == 0 else min(round(qty, 6), pos["qty"]),
                             "left the target" if want == 0 else "above target"))
     # 2. purchases: largest gaps first, within the cash available after the sales
     budget = cash + sum(o.dollars for o in orders) - equity * reserve
@@ -70,6 +72,16 @@ def plan_orders(target: pd.Series, positions: dict[str, dict], equity: float, ca
             continue
         orders.append(Order(symbol, "buy", round(spend, 2), 0.0, "new in target" if symbol not in positions else "below target"))
         budget -= spend
+    # 3. when stocks went out and nothing came in, cash piles up while every holding sits just inside its band:
+    #    above ``max_idle`` of the account, it is spread over the holdings below their target, band or not
+    if budget > max_idle * equity:
+        ordered = {o.symbol for o in orders}
+        for symbol, gap in sorted(gaps.items(), key=lambda kv: -kv[1]):
+            spend = int(min(gap, budget) * 100) / 100                     # rounded down: the total never exceeds the cash
+            if symbol in ordered or symbol not in positions or spend < min_order:
+                continue
+            orders.append(Order(symbol, "buy", spend, 0.0, "below target"))
+            budget -= spend
     bought, sold = sum(o.dollars for o in orders if o.side == "buy"), sum(o.dollars for o in orders if o.side == "sell")
     assert bought <= cash + sold - equity * reserve + 0.01 or bought == 0, "purchases exceed the cash available"
     assert all(o.qty <= positions[o.symbol]["qty"] + 1e-9 for o in orders if o.side == "sell"), "sale above the position"

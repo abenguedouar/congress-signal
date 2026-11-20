@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from csig.live.planner import plan_orders
-from csig.live.target import WIDE, target_weights
+from csig.live.target import WIDE, split_by_review, target_weights
 from csig.portfolio import backtest
 
 RULES = {"cash_reserve": 0.01, "min_order_dollars": 5.0, "no_trade_band": 0.2, "max_order_share": 0.15, "hold_days": 2}
@@ -64,4 +64,27 @@ def test_small_deviations_are_left_alone():
     assert _plan(target, positions, cash=1_000.0)["orders"] == []
     positions["S0"]["value"] = 9_900.0 * 1.5
     orders = _plan(target, positions, cash=1_000.0)["orders"]
-    assert [(o["symbol"], o["side"]) for o in orders] == [("S0", "sell")] and orders[0]["qty"] < 1.0
+    assert [(o["symbol"], o["side"]) for o in orders] == [("S0", "sell"), ("S1", "buy")] and orders[0]["qty"] < 1.0
+    assert orders[1]["dollars"] == pytest.approx(990.0)       # the cash freed by the trim goes to the holding under its target
+
+
+def test_a_stock_that_leaves_the_target_is_sold_whole():
+    days = pd.bdate_range("2026-11-10", periods=8)
+    positions = {"AAA": {"qty": 9.021356234, "value": 2364.23}, "BBB": {"qty": 3.0, "value": 3000.0}}
+    plan = plan_orders(pd.Series({"BBB": 0.5}), positions, 5400.0, 35.77, {"AAA": "2026-11-10"}, days[-1], days, {})
+    (order,) = [o for o in plan["orders"] if o["symbol"] == "AAA"]
+    assert order["side"] == "sell" and order["reason"] == "left the target" and order["qty"] == 9.021356234      # not rounded: nothing is left behind
+
+
+def test_a_stock_waits_until_its_activity_is_checked():
+    review = {"AAA": {"ok": True}, "BBB": {"ok": False, "why": "refused"}}
+    assert split_by_review(["AAA", "BBB", "CCC"], review) == (["AAA"], ["CCC"], ["BBB"])
+
+
+def test_idle_cash_is_put_back_to_work():
+    target = {"A": 1 / 3, "B": 1 / 3, "C": 1 / 3}
+    positions = {s: {"qty": 1.0, "value": 2_400.0} for s in target}
+    plan = _plan(target, positions, equity=8_700.0, cash=1_500.0)            # each holding is 16% under its target: inside the band
+    assert plan["summary"]["buys"] == 3 and {o["reason"] for o in plan["orders"]} == {"below target"}
+    assert 1_400 < plan["summary"]["bought"] <= 1_500 - 87                    # all the cash above the 1% reserve, never more
+    assert _plan(target, positions, equity=7_400.0, cash=200.0)["orders"] == []      # under 3% of the account in cash: left alone

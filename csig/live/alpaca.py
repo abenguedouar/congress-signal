@@ -43,8 +43,17 @@ class Broker:
         return self._call("GET", "/v2/clock")
 
     def positions(self) -> dict[str, dict]:
-        return {p["symbol"]: {"qty": float(p["qty"]), "value": float(p["market_value"]), "price": float(p["current_price"])}
+        return {p["symbol"]: {"qty": float(p["qty"]), "value": float(p["market_value"]), "price": float(p["current_price"]),
+                              "cost": float(p.get("avg_entry_price") or 0.0), "pnl": float(p.get("unrealized_pl") or 0.0)}
                 for p in self._call("GET", "/v2/positions")}
+
+    def close(self, symbol: str) -> dict:
+        """Sells the whole position, fractions included (the broker computes the exact quantity)."""
+        return self._call("DELETE", f"/v2/positions/{symbol}")
+
+    def configure(self, **settings) -> dict:
+        """Account settings, e.g. no_shorting=True, max_margin_multiplier="1"."""
+        return self._call("PATCH", "/v2/account/configurations", json=settings)
 
     def open_orders(self) -> list[dict]:
         return self._call("GET", "/v2/orders", params={"status": "open", "limit": 500})

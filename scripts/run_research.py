@@ -68,7 +68,8 @@ def main(synthetic: bool, n_null: int, final: bool) -> None:
     st, prices, elig, leg, committees, sic, state, factors, dropped = (load_synthetic if synthetic else load_real)(cfg)
 
     # ---- locked period: invisible until --final ---------------------------------
-    lock_start = prices.index.max() - pd.DateOffset(months=cfg["research"]["lockbox_months"])
+    fixed = cfg["research"].get("locked_from")           # fixed once the data started to be refreshed every day
+    lock_start = pd.Timestamp(str(fixed)) if fixed and not synthetic else prices.index.max() - pd.DateOffset(months=cfg["research"]["lockbox_months"])
     if not final and not synthetic:
         prices = prices[prices.index < lock_start]
         st = st[st["disclosure_date"] < lock_start]

@@ -15,6 +15,8 @@ tickers:
 
 research:
   lockbox_months: 24          # the most recent 24 months are not looked at until every choice is frozen
+  locked_from: 2024-11-10     # that boundary, written down on 13 November 2026: the data is now refreshed every day
+                              # for the live portfolio, and the locked period must not shrink as new days arrive
   eval_start: 2016-01-04      # delisted companies have prices from 2016 only: before that date the panel holds survivors only,
                               # so earlier data is used to train and to build member histories, never to judge a rule
 
@@ -53,10 +55,13 @@ portfolio:
   veto_max_filing_size: 10    # sales from filings larger than this are liquidations or account moves: ignored
 
 live:                         # daily operation on the broker's test account
-  launch_date: 2026-12-01     # no order is sent before this day, whatever the command
+  launch_date: 2026-11-16     # no order is sent before this day, whatever the command
+  initial_equity: 100000      # test money on the account at the launch
+  report_day: 15              # a statement closes on this day of each month (or the next trading day)
   cash_reserve: 0.01          # share of the account kept in cash (rounding, price moves between decision and execution)
   min_order_dollars: 5.0
   no_trade_band: 0.2          # a holding within 20% of its target size is left alone (fewer, larger trades)
+  max_idle_cash: 0.03         # ... unless more than 3% of the account sits in cash: it is then spread over the holdings below target
   max_order_share: 0.15       # an order above 15% of the account is refused and reported
   hold_days: 2                # a purchase is not sold before it has settled
 
@@ -65,3 +70,5 @@ public:                       # the public copy and its page
   repo: congress-signal
   author: Abderrahmene Benguedouar
   linkedin: https://www.linkedin.com/in/abderrahmene-benguedouar
+  auto_publish: true          # the owner approved the page on 20 November 2026: the scheduled runs update it by themselves
+  live_refresh: false         # true once an outside timer starts the snapshot every 15 minutes (GitHub's own schedule runs hours late)

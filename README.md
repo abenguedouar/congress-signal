@@ -38,7 +38,7 @@ python scripts/run_research.py --null 200           # walk-forward experiment an
 
 ## Test portfolio
 
-From 1 December 2026 the rule fixed before the final test (hold, in equal parts, every eligible stock with a purchase disclosed in the last 63 trading days) runs on a broker's test account, with test money. Performance against the S&P 500 is published on the [project page](https://abenguedouar.github.io/congress-signal/); holdings are shown one month late.
+Since 16 November 2026 the rule fixed before the final test (hold, in equal parts, every eligible stock with a purchase disclosed in the last 63 trading days) runs on a broker's test account, with test money. The [project page](https://abenguedouar.github.io/congress-signal/) is its tracker: value, holdings (shares, price, value), the members of Congress whose disclosures explain each holding, performance against the S&P 500 over any period, orders, and a statement to download as PDF on the 15th of each month. Performance is counted from the minute of the first purchases, for the portfolio and for the index alike. The page can be read in English or in French.
 
 ## How this was built
 

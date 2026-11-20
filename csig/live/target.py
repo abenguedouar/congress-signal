@@ -18,11 +18,22 @@ WIDE = {"max_names": 10 ** 6, "max_weight": 1.0, "min_weight": 0.0}
 
 
 def purchase_signals(st: pd.DataFrame, calendar: pd.DatetimeIndex) -> pd.DataFrame:
-    """One row per disclosed purchase: ticker and i0, the first trading day strictly after the disclosure."""
+    """One row per disclosed purchase: ticker, i0 (the first trading day strictly after the disclosure) and who bought."""
     buys = st[st["side"] == "buy"]
     i0 = np.searchsorted(calendar.values, buys["disclosure_date"].values.astype("datetime64[ns]"), side="right")
+    col = lambda c: buys[c].to_numpy() if c in buys else np.full(len(buys), None, dtype=object)
     return pd.DataFrame({"ticker": buys["ticker"].to_numpy(), "i0": i0, "member": buys["member_name"].to_numpy(),
-                         "disclosed": buys["disclosure_date"].to_numpy()})
+                         "disclosed": buys["disclosure_date"].to_numpy(), "chamber": col("chamber"), "traded": col("trade_date"),
+                         "amount_min": col("amount_min"), "amount_max": col("amount_max"), "owner": col("owner")})
+
+
+def split_by_review(candidates, review: dict) -> tuple[list[str], list[str], list[str]]:
+    """(approved, waiting, refused). ``review``: {ticker: {"ok": bool, ...}}, the record of the activity checks that
+    the private mandate asks for before a stock is bought for the first time. A stock without a record waits."""
+    approved = [t for t in candidates if review.get(t, {}).get("ok") is True]
+    waiting = [t for t in candidates if t not in review]
+    refused = [t for t in candidates if t in review and review[t].get("ok") is not True]
+    return approved, waiting, refused
 
 
 def target_weights(st: pd.DataFrame, calendar: pd.DatetimeIndex, eligible: pd.DataFrame, priced, today,

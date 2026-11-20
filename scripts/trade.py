@@ -9,13 +9,15 @@ Creating the file data/store/live/STOP blocks every order.
 """
 import argparse
 import json
+import time
 
 import pandas as pd
 
 from csig.config import ROOT, load_config
 from csig.data.trades import signals
+from csig.live.context import build_context
 from csig.live.planner import plan_orders
-from csig.live.target import target_weights
+from csig.live.target import split_by_review, target_weights
 
 
 def main(execute: bool = False) -> dict:
@@ -31,7 +33,21 @@ def main(execute: bool = False) -> dict:
     eligible = pd.read_parquet(store / "eligibility.parquet")
     target, active = target_weights(st, calendar, eligible, priced, today, cfg["portfolio"]["signal_ttl_days"])
 
-    broker, notes = None, []
+    broker, notes, waiting = None, [], []
+    review_path = live / "activity_review.json"            # the mandate's activity check: a stock without a record is not bought yet
+    if review_path.exists():
+        review = json.loads(review_path.read_text())
+        approved, waiting, refused = split_by_review(list(target.index), review)
+        behind = active[active["ticker"].isin(waiting)]
+        if waiting or refused:
+            target, active = target_weights(st, calendar, eligible, pd.Index([t for t in priced if review.get(t, {}).get("ok") is True]),
+                                            today, cfg["portfolio"]["signal_ttl_days"])
+            if waiting:
+                notes.append(f"waiting for the activity check, not bought: {', '.join(sorted(waiting))}")
+            if refused:
+                notes.append(f"refused by the activity check: {', '.join(sorted(refused))}")
+        (live / "pending_review.json").write_text(json.dumps(
+            [{"ticker": t, "members": sorted(behind[behind["ticker"] == t]["member"].unique())} for t in sorted(waiting)] if waiting else []))
     try:
         from csig.live.alpaca import Broker
         broker = Broker()
@@ -49,12 +65,6 @@ def main(execute: bool = False) -> dict:
         notes.append(f"broker not reached ({type(exc).__name__}: {exc}); plan computed for an empty account of 100,000")
         account, positions = {"equity": 100_000.0, "cash": 100_000.0, "status": "simulated"}, {}
 
-    if broker is not None:                                # daily record of the account: what the public page plots
-        eq_path, day = live / "equity.parquet", str(pd.Timestamp.now().date())
-        eq = pd.read_parquet(eq_path) if eq_path.exists() else pd.DataFrame(columns=["date", "equity", "cash", "positions"])
-        row = pd.DataFrame([{"date": day, "equity": account["equity"], "cash": account["cash"], "positions": len(positions)}])
-        pd.concat([eq[eq["date"] != day], row], ignore_index=True).to_parquet(eq_path)
-        (live / f"positions_{day}.json").write_text(json.dumps({s_: round(p_["value"], 2) for s_, p_ in positions.items()}))
     ledger_path = live / "ledger.parquet"
     ledger = pd.read_parquet(ledger_path) if ledger_path.exists() else pd.DataFrame(
         columns=["date", "symbol", "side", "dollars", "qty", "reason", "order_id", "status"])
@@ -73,19 +83,41 @@ def main(execute: bool = False) -> dict:
             plan["notes"].append("STOP file present: no order sent")
         elif plan["refused"]:
             plan["notes"].append("an order was refused by the safety rules: nothing sent, a person must look")
+        elif not broker.clock().get("is_open"):
+            plan["notes"].append("the market is closed: no order sent")
         else:
-            sent = []
+            if account.get("shorting_enabled") or account.get("multiplier", 1) > 1:     # the account itself refuses to borrow or sell short
+                try:
+                    broker.configure(no_shorting=True, max_margin_multiplier="1")
+                    plan["notes"].append("account set to: no short selling, no borrowing")
+                except Exception as exc:
+                    plan["notes"].append(f"account settings not changed ({exc}); the planner never borrows or sells short anyway")
+            sent, waited = [], False
             for o in sorted(plan["orders"], key=lambda o: o["side"] != "sell"):      # sales first
+                if o["side"] == "buy" and sent and not waited:                       # purchases paid by today's sales: wait until these are done
+                    waited = True
+                    for _ in range(30):
+                        if not broker.open_orders():
+                            break
+                        time.sleep(2)
                 tag = f"{plan['date']}-{o['symbol']}-{o['side']}"                     # the broker rejects a repeated tag: one order per stock per day
                 try:
-                    r = broker.sell(o["symbol"], o["qty"], tag) if o["side"] == "sell" else broker.buy(o["symbol"], o["dollars"], tag)
+                    if o["side"] == "sell":
+                        r = broker.close(o["symbol"]) if o["reason"] == "left the target" else broker.sell(o["symbol"], o["qty"], tag)
+                    else:
+                        r = broker.buy(o["symbol"], o["dollars"], tag)
                     sent.append({**o, "date": plan["date"], "order_id": r.get("id"), "status": r.get("status")})
                 except Exception as exc:
                     plan["notes"].append(f"{o['symbol']} {o['side']}: not sent ({exc})")
             if sent:
-                pd.concat([ledger, pd.DataFrame(sent)], ignore_index=True).to_parquet(ledger_path)
+                ledger = pd.concat([ledger, pd.DataFrame(sent)], ignore_index=True)
+                ledger.to_parquet(ledger_path)
             plan["sent"] = len(sent)
+            stamp = pd.Timestamp.now(tz="UTC")                  # today's decision is made: later scheduled starts stop at once
+            (live / "last_run.json").write_text(json.dumps({"utc_date": str(stamp.date()), "at": stamp.strftime("%H:%M UTC"), "sent": len(sent)}))
     (live / f"plan_{plan['date']}.json").write_text(json.dumps(plan, indent=1))
+    context = build_context(cfg, store, sorted(set(target.index) | set(positions)), active, ledger)   # what the page shows beside the account
+    (live / "context.json").write_text(json.dumps(context))
     show = {k: plan[k] for k in ("date", "mode", "account", "holdings_before", "target_names", "signals", "members_behind", "summary", "refused", "notes")}
     print(json.dumps(show, indent=1))
     for o in plan["orders"][:60]:

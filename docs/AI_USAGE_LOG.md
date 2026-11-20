@@ -121,3 +121,25 @@ it records what the assistant did and what the student decided or checked.
 - Daily decision built in dry-run mode: target portfolio from the tested rule, order planner with safety rules,
   client for the broker's test account. First dry run on GitHub: account of 100,000 (test money), 39 stocks in
   the target, no order sent. Launch decided by the student for 1 December 2026.
+
+**13 November (public page and live operation, outside the course deliverable)**
+- The student asked for a portfolio tracker on the public page (value, holdings with shares, price and value, the
+  members of Congress behind each holding, performance over a period he chooses, statements in PDF), in its own
+  tab, with the page readable in French, and moved the launch to 16 November 2026 with a statement on the 15th of
+  each month. The assistant first proposed to show, before the launch, the positions the rule would take; the
+  student refused (nothing was bought yet): the tracker stays empty until the first order.
+- Written by the assistant: the snapshot of the test account (standard library only, read-only), the record of
+  each close, the monthly statements, the three scheduled jobs (decision after the open, snapshot every 15 minutes
+  during the session, record and page after the close), the page in two languages. Tested on canned answers of
+  the broker and on an invented account history; not yet seen running on a real trading day.
+
+**16 to 20 November (live operation, outside the course deliverable)**
+- First purchases on 16 November. GitHub started the scheduled runs 6 to 9 hours late: the assistant started the
+  run by hand on 16 and 17 November, then asked for one start per hour (the first that finds the market open
+  decides); the runs of 18 and 19 November went through alone.
+- Errors found in the assistant's own code during these days: the price cache was judged fresh for a full day
+  (a daily run would have skipped updates); a sale rounded to the millionth of a share left dust behind; cash was
+  left idle when several stocks went out at once. Each was fixed with a test.
+- Decisions of the student on 20 November: publish the page; count the performance from the minute of the first
+  purchases, because the portfolio was in cash during the fall of that morning and the comparison flattered it by
+  about one point; have the activity of each stock checked before it is bought, as the private mandate requires.
