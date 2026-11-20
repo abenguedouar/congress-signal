@@ -134,6 +134,17 @@ def main(synthetic: bool, n_null: int, final: bool) -> None:
     report["rpca_unusual_vs_herd"] = {"unusual_top20_mean": float(y[hi].mean()), "herd_bottom20_mean": float(y[lo].mean()),
                                       "difference": float(y[hi].mean() - y[lo].mean())}
 
+    if final and not synthetic:        # the same quantities on the locked period alone (what is reported was fixed before the run)
+        L = ev["t0"] >= lock_start
+        g, u = y[L], ev.loc[L, "unusual"]
+        report["locked"] = {
+            "from": str(lock_start.date()), "to": str(ev.loc[L, "t0"].max().date()),
+            "purchases": int(g.notna().sum()), "members": int(ev.loc[L & y.notna(), "member_key"].nunique()),
+            "mean": float(g.mean()), "sd": float(g.std()), "share_beating_benchmark": float((g.dropna() > 0).mean()),
+            "models": {name: sparse.evaluate(sc[L], g, ev["t0"]) for name, sc in {**scores, "rpca_unusual": ev["unusual"]}.items()
+                       if name != "most_bought"},
+            "rpca_unusual_vs_herd": {"unusual_top20_mean": float(g[u >= u.quantile(0.8)].mean()), "herd_bottom20_mean": float(g[u <= u.quantile(0.2)].mean())}}
+
     # ---- 2. portfolios --------------------------------------------------------
     returns = prices.pct_change(fill_method=None).iloc[1:]
     bench_ret, stock_ret = returns[bench], returns.drop(columns=[bench])
@@ -205,7 +216,7 @@ def main(synthetic: bool, n_null: int, final: bool) -> None:
         ax.set_title("Out-of-sample portfolios built on disclosed purchases" + (" - SYNTHETIC DATA" if synthetic else ""))
         ax.legend(fontsize=6, ncol=2)
         fig.tight_layout()
-        fig.savefig(out / ("equity_curves_synthetic.png" if synthetic else "equity_curves.png"), dpi=150)
+        fig.savefig(out / ("equity_curves_synthetic.png" if synthetic else "equity_curves_final.png" if final else "equity_curves.png"), dpi=150)
     if curves and not synthetic:                      # growth of 1 for every rule and the benchmark, for the report's figures
         table = pd.DataFrame(curves)
         b = (1 + bench_ret.reindex(table.index).fillna(0.0)).cumprod()

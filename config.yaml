@@ -71,4 +71,4 @@ public:                       # the public copy and its page
   author: Abderrahmene Benguedouar
   linkedin: https://www.linkedin.com/in/abderrahmene-benguedouar
   auto_publish: true          # the owner approved the page on 20 November 2026: the scheduled runs update it by themselves
-  live_refresh: false         # true once an outside timer starts the snapshot every 15 minutes (GitHub's own schedule runs hours late)
+  live_refresh: true          # an outside timer starts the snapshot every 15 minutes since 20 November 2026 (GitHub's own schedule runs hours late)
